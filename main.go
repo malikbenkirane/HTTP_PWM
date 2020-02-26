@@ -186,6 +186,7 @@ func addElement(w http.ResponseWriter , r *http.Request){
 				p.Username = user
 				t, _ := template.ParseFiles("add.html")
 				t.Execute(w,p)
+				p.Ok = false 
 				
 			}
 
@@ -277,7 +278,8 @@ func updatehandle(w http.ResponseWriter, r *http.Request){
 			}else{
 				p.Username = user
 				t,_ := template.ParseFiles("update.html")
-				fmt.Println(t.Execute(w,p))
+				t.Execute(w,p)
+				p.Updated = false 
 			}
 		case "POST":
 			r.ParseForm()
