@@ -12,7 +12,8 @@ import (
 )
 
 
-const DB string = "./test.db"
+
+const DB string = "./database.db"
 
 
 func checkError(err error){
