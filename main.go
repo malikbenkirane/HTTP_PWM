@@ -311,6 +311,35 @@ func updatehandle(w http.ResponseWriter, r *http.Request){
 		}
 }
 
+func deletehandle(w http.ResponseWriter , r *http.Request){
+	fmt.Printf("[%s] %s\n",r.Method,r.URL.Path)
+	if r.URL.Path != "/delete/"{
+		http.Error(w,"404 Page Not Found", http.StatusNotFound)
+		fmt.Printf("[%s] %s\n",r.Method,r.URL.Path)
+	}
+
+	cookie ,_ := r.Cookie("session")
+
+	switch req := r.Method ;req {
+		case "GET":
+			if cookie == nil{
+				fmt.Fprintf(w,"Login to delete your stuff")
+			}else{
+				t,_ := template.ParseFiles("delete.html")
+				t.Execute(w,p)
+				p.Ok = false
+			}
+		case "POST":
+			r.ParseForm()
+			id,_ := strconv.ParseInt(r.Form.Get("id")[0:], 10, 0)
+			ok := sqlite.Delete(int(id))
+			p.Ok = ok
+			http.Redirect(w,r,"/delete/",http.StatusFound)
+	}
+
+
+}
+
 
 
 func main(){
@@ -322,6 +351,8 @@ func main(){
 	http.HandleFunc("/logout/",logouthandle)
 	http.HandleFunc("/show/",showhandle)
 	http.HandleFunc("/update/",updatehandle)
+	http.HandleFunc("/delete/",deletehandle)
+
 
 	fmt.Println("Running http server on http://localhost:8080 ")
 	if err := http.ListenAndServe(":8080", nil) ; err != nil{

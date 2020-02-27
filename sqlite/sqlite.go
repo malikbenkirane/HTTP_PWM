@@ -237,3 +237,20 @@ func Save(user string, passwd string, category string, uid int)bool{
 	return ok
 }
 
+
+func Delete(id int)bool{
+	db,err := sql.Open("sqlite3",DB)
+	checkError(err)
+	defer db.Close()
+
+	stmt ,err := db.Prepare("DELETE FROM passwords WHERE pwid = ?")
+	stmt.Exec(id)
+	var ok bool
+	if err != nil{
+		ok = false
+	}else{ 
+		ok = true
+	}
+	return ok 
+}
+
