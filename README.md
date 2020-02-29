@@ -6,6 +6,7 @@
 
 - [ ] prevent clear text password beeing seen (ssl-proxy, os/exec, ...)
 - [ ] fix error coverage
+- [ ] complete roadmap
 
 ## Quick Setup and Run 
 
