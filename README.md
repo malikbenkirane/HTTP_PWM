@@ -2,12 +2,16 @@
 
 ## TEST PROJECT for learning Go lang
 
+## Roadmap
+
+- [ ] prevent clear text password beeing seen (ssl-proxy, os/exec, ...)
+- [ ] fix error coverage
+
 ## Quick Setup and Run 
 
-```
-$ go get github.com/gorilla/securecookie
-$ go get github.com/mattn/go-sqlite3
+```sh
 
-$ go run main.go
+go get 
+go run main.go
 
 ```

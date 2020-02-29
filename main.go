@@ -1,362 +1,355 @@
 package main
 
-
-
-import(
+import (
 	"fmt"
-	"net/http"
-	"log"
-	"strconv"
-	"html/template"
+	"github.com/TaKeO90/HTTP_PWM/sqlite"
 	"github.com/gorilla/securecookie"
-	"./sqlite"
+	"html/template"
+	"log"
+	"net/http"
+	"strconv"
 )
 
 var cookieHandler = securecookie.New(
 	securecookie.GenerateRandomKey(64),
 	securecookie.GenerateRandomKey(32))
 
-//Cookies handling Functions 
-func setSession(username string , w http.ResponseWriter){
+const sessionCookie = "session"
+
+//Cookies handling Functions
+func setSession(username string, w http.ResponseWriter) error {
 	value := map[string]string{
-		"name":username,
+		"name": username,
 	}
-	if encoded, err := cookieHandler.Encode("session",value); err == nil{
-		cookie := &http.Cookie{
-			Name :"session",
-			Value : encoded,
-			Path: "/",
-			MaxAge : 3600,
-		}
-		http.SetCookie(w,cookie)
+	var err error
+	encoded, err := cookieHandler.Encode(sessionCookie, value)
+	if err != nil {
+		return err
 	}
+	cookie := &http.Cookie{
+		Name:   sessionCookie,
+		Value:  encoded,
+		Path:   "/",
+		MaxAge: 3600,
+	}
+	http.SetCookie(w, cookie)
+	return nil
 }
 
-func getUserName(r *http.Request) (username string){
-	if cookie , err := r.Cookie("session"); err == nil{
+func getUserName(r *http.Request) (username string) {
+	if cookie, err := r.Cookie("session"); err == nil {
 		cookieValue := make(map[string]string)
-		if err = cookieHandler.Decode("session",cookie.Value, &cookieValue); err == nil{
+		if err = cookieHandler.Decode("session", cookie.Value, &cookieValue); err == nil {
 			username = cookieValue["name"]
 		}
 	}
 	return username
 }
 
-
-func clearSession(r http.ResponseWriter){
+func clearSession(r http.ResponseWriter) {
 	cookie := &http.Cookie{
-		Name : "session",
-		Value : "",
-		Path : "/" ,
-		MaxAge : -1,
+		Name:   "session",
+		Value:  "",
+		Path:   "/",
+		MaxAge: -1,
 	}
-	http.SetCookie(r,cookie)
+	http.SetCookie(r, cookie)
 }
 
-// End of cookies functions 
+// End of cookies functions
 
-
-type USER struct{
+type USER struct {
 	Username string
-	Ok bool
-	Updated bool
-	Id string
-	User string
+	Ok       bool
+	Updated  bool
+	Id       string
+	User     string
 	Password string
 	Category string
 }
 
 type Userlist []USER
 
-var(
-
+var (
 	finallist Userlist
-	p = USER{}
+	p         = USER{}
 )
 
-
-
-func home(w http.ResponseWriter, r *http.Request){
-	fmt.Printf("[%s] %s\n",r.Method,r.URL.Path)
-	if r.URL.Path != "/"{
-		http.Error(w,"404 Page Not Found",http.StatusNotFound)
-		fmt.Printf("[%s] %s\n",r.Method,r.URL.Path)
+func home(w http.ResponseWriter, r *http.Request) {
+	fmt.Printf("[%s] %s\n", r.Method, r.URL.Path)
+	if r.URL.Path != "/" {
+		http.Error(w, "404 Page Not Found", http.StatusNotFound)
+		fmt.Printf("[%s] %s\n", r.Method, r.URL.Path)
 		return
 	}
 	user := getUserName(r)
 	u := USER{Username: user}
 
-	t,_ := template.ParseFiles("home.html")
-	t.Execute(w,u)
+	t, _ := template.ParseFiles("home.html")
+	t.Execute(w, u)
 }
 
-
-
-
 //register Func
-func registerhandle(w http.ResponseWriter, r *http.Request){
-	fmt.Printf("[%s] %s\n",r.Method,r.URL.Path)
-	if r.URL.Path != "/register/"{
-		http.Error(w,"404 Page Not Found",http.StatusNotFound)
+func registerhandle(w http.ResponseWriter, r *http.Request) {
+	fmt.Printf("[%s] %s\n", r.Method, r.URL.Path)
+	if r.URL.Path != "/register/" {
+		http.Error(w, "404 Page Not Found", http.StatusNotFound)
 	}
 
-	if r.Method == "GET"{
-		if cookie,_ := r.Cookie("session");cookie != nil {
-			fmt.Fprintf(w,"logout to register")
-		}else{
-			t,_ := template.ParseFiles("register.html")
-			t.Execute(w,nil)
+	if r.Method == "GET" {
+		if cookie, _ := r.Cookie("session"); cookie != nil {
+			fmt.Fprintf(w, "logout to register")
+		} else {
+			t, _ := template.ParseFiles("register.html")
+			t.Execute(w, nil)
 		}
-	}else{
+	} else {
 		r.ParseForm()
 		user := r.FormValue("user")
 		passw := r.FormValue("passw")
 		email := r.FormValue("email")
-		
-		if reg := sqlite.Register(user,passw,email); reg != 1 {
-			http.Redirect(w,r,"/login/",http.StatusFound)
+
+		if reg := sqlite.Register(user, passw, email); reg != 1 {
+			http.Redirect(w, r, "/login/", http.StatusFound)
 		}
 	}
 }
 
-
-
-
-func loginhandle(w http.ResponseWriter, r *http.Request){
-	if r.URL.Path != "/login/"{
-		http.Error(w,"404 Page Not Found",http.StatusNotFound)
-		fmt.Printf("[%s] %s\n",r.Method,r.URL.Path)
+func loginhandle(w http.ResponseWriter, r *http.Request) error {
+	if r.URL.Path != "/login/" {
+		http.Error(w, "404 Page Not Found", http.StatusNotFound)
+		fmt.Printf("[%s] %s\n", r.Method, r.URL.Path)
 	}
 
-
-	if r.Method == "POST"{
-		fmt.Printf("[%s] %s\n",r.Method,r.URL.Path)
+	if r.Method == "POST" {
+		fmt.Printf("[%s] %s\n", r.Method, r.URL.Path)
 		r.ParseForm()
 		user := r.FormValue("user")
 		passw := r.FormValue("passw")
 
-		if user != "" && passw != ""{
-			islogin := sqlite.Login(user,passw)
+		if user != "" && passw != "" {
+			islogin := sqlite.Login(user, passw)
 			if islogin {
-				setSession(user,w) // setting session for the user
-				http.Redirect(w,r,"/",http.StatusFound) // redirect user to Home page
-			}else{
-				fmt.Fprintf(w,"username or password is incorrect!\n")
+				// setting session for the user
+				if err := setSession(user, w); err != nil {
+					return err
+				}
+				http.Redirect(w, r, "/", http.StatusFound) // redirect user to Home page
+			} else {
+				fmt.Fprintf(w, "username or password is incorrect!\n")
 			}
-		}else{
-			fmt.Println(user,passw)
-			fmt.Fprintf(w,"args missing!\n")
+		} else {
+			fmt.Println(user, passw)
+			fmt.Fprintf(w, "args missing!\n")
 		}
 
-	}else if r.Method == "GET"{
-		fmt.Printf("[%s] %s\n",r.Method,r.URL.Path)
-		if cookie ,_ := r.Cookie("session"); cookie != nil{
-			fmt.Fprintf(w,"You are Already logged-in")
-		}else{
-			t,_ := template.ParseFiles("login.html")
-			t.Execute(w,nil)
+	} else if r.Method == "GET" {
+		fmt.Printf("[%s] %s\n", r.Method, r.URL.Path)
+		if cookie, _ := r.Cookie("session"); cookie != nil {
+			fmt.Fprintf(w, "You are Already logged-in")
+		} else {
+			t, _ := template.ParseFiles("login.html")
+			t.Execute(w, nil)
 		}
-		
+
 	}
+	return nil
 }
 
-
-func logouthandle(w http.ResponseWriter, r *http.Request){
-	fmt.Printf("[%s] %s\n",r.Method,r.URL.Path)
+func logouthandle(w http.ResponseWriter, r *http.Request) {
+	fmt.Printf("[%s] %s\n", r.Method, r.URL.Path)
 	clearSession(w)
-	fmt.Fprintf(w,"You were logged out")
+	fmt.Fprintf(w, "You were logged out")
 }
 
-
-
-func addElement(w http.ResponseWriter , r *http.Request){
-	if r.URL.Path != "/add/"{
-		http.Error(w,"404 Page Not Found",http.StatusNotFound)
-		fmt.Printf("[%s] %s\n",r.Method,r.URL.Path)
+func addElement(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/add/" {
+		http.Error(w, "404 Page Not Found", http.StatusNotFound)
+		fmt.Printf("[%s] %s\n", r.Method, r.URL.Path)
 		return
 	}
 
-	cookie , _ := r.Cookie("session")
-	switch req := r.Method ;req {
-		case "GET":
-			if cookie == nil {
-				fmt.Fprintf(w,"login to save passwords")
-			}else{
-				user := getUserName(r)
-				p.Username = user
-				t, _ := template.ParseFiles("add.html")
-				t.Execute(w,p)
-				p.Ok = false 
-				
-			}
+	cookie, _ := r.Cookie("session")
+	switch req := r.Method; req {
+	case "GET":
+		if cookie == nil {
+			fmt.Fprintf(w, "login to save passwords")
+		} else {
+			user := getUserName(r)
+			p.Username = user
+			t, _ := template.ParseFiles("add.html")
+			t.Execute(w, p)
+			p.Ok = false
 
-		case "POST":
-			fmt.Printf("[%s] %s\n",r.Method,r.URL.Path)
-			r.ParseForm()
-			user := r.Form.Get("user")
-			passw := r.Form.Get("passw")
-			category := r.Form.Get("category")
-			username := getUserName(r)
-			id := sqlite.Getuid(username)
-
-			if ok := sqlite.Save(user,passw,category,id) ; ok{
-				p.Ok = ok
-				http.Redirect(w,r,"/add/",http.StatusFound)
-			}
-	}
-}
-
-
-
-
-func showhandle(w http.ResponseWriter , r *http.Request){
-	fmt.Printf("[%s] %s\n",r.Method,r.URL.Path)
-
-	if r.URL.Path != "/show/"{
-		http.Error(w,"404 Page Not Found", http.StatusNotFound)
-		fmt.Printf("[%s] %s\n",r.Method,r.URL.Path)
-	}
-	cookie ,_ := r.Cookie("session")
-	user := getUserName(r) // get username from session 
-
-	switch req := r.Method ; req {
-		case "GET":
-			if cookie == nil{
-				fmt.Fprintf(w,"login to show your stuff")
-			}else{
-				p.Username = user
-				t,_ := template.ParseFiles("show.html")
-				t.Execute(w,finallist)
-			}
-		
-		case "POST":
-			r.ParseForm()
-			category := r.Form.Get("category")
-			id := sqlite.Getuid(user)
-			if category != "" {
-				i,u,P,c := sqlite.GetStuff(id,category)
-				finallist = finallist[:0]
-				for x := 0 ; x<len(i);x++{
-					p.Id = i[x]
-					p.User = u[x]
-					p.Password = P[x]
-					p.Category = c[x]
-					finallist = append(finallist,p)
-				}
-				
-				http.Redirect(w,r,"/show/",http.StatusFound)
-			}else{
-				i,u,P,c := sqlite.GetStuff(id,category)
-				finallist = finallist[:0]
-				for x := 0 ; x<len(i);x++{
-					p.Id = i[x]
-					p.User = u[x]
-					p.Password = P[x]
-					p.Category = c[x]
-					finallist = append(finallist,p)
-				}
-				
-				http.Redirect(w,r,"/show/",http.StatusFound)
-			}	
-	}
-
-}
-
-
-func updatehandle(w http.ResponseWriter, r *http.Request){ 
-	fmt.Printf("[%s] %s\n",r.Method,r.URL.Path)
-	if r.URL.Path != "/update/"{
-		http.Error(w,"404 Page Not Found", http.StatusNotFound)
-		fmt.Printf("[%s] %s\n",r.Method,r.URL.Path)
-	}
-	cookie ,_ := r.Cookie("session")
-	user := getUserName(r)
-	switch req := r.Method ; req {
-		case "GET":
-			if cookie == nil{
-				fmt.Fprintf(w,"login to update your stuff")
-			}else{
-				p.Username = user
-				t,_ := template.ParseFiles("update.html")
-				t.Execute(w,p)
-				p.Updated = false 
-			}
-		case "POST":
-			r.ParseForm()
-			id,err := strconv.ParseInt(r.Form.Get("id")[0:], 10, 0)
-			if err != nil{
-				panic(err)
-			}
-			Nuser := r.Form.Get("user")
-			Npassw := r.Form.Get("passw")
-			Ncatg := r.Form.Get("catg")
-
-			var ok bool = false
-			if x := sqlite.Update(int(id),Nuser,Npassw,Ncatg) ; len(x) != 0 {
-
-				for i:=0;i<len(x);i++{
-					if x[i] != 0 && i == 0{
-						ok = true
-						p.Updated = ok
-					}else if x[i] != 0 && i == 1{
-						ok = true
-						p.Updated = ok
-					}else if x[i] != 0 && i == 2 {
-						ok = true
-						p.Updated = ok
-					}
-				}
-				http.Redirect(w,r,"/update/",http.StatusFound)
-			}
 		}
-}
 
-func deletehandle(w http.ResponseWriter , r *http.Request){
-	fmt.Printf("[%s] %s\n",r.Method,r.URL.Path)
-	if r.URL.Path != "/delete/"{
-		http.Error(w,"404 Page Not Found", http.StatusNotFound)
-		fmt.Printf("[%s] %s\n",r.Method,r.URL.Path)
-	}
+	case "POST":
+		fmt.Printf("[%s] %s\n", r.Method, r.URL.Path)
+		r.ParseForm()
+		user := r.Form.Get("user")
+		passw := r.Form.Get("passw")
+		category := r.Form.Get("category")
+		username := getUserName(r)
+		id := sqlite.Getuid(username)
 
-	cookie ,_ := r.Cookie("session")
-
-	switch req := r.Method ;req {
-		case "GET":
-			if cookie == nil{
-				fmt.Fprintf(w,"Login to delete your stuff")
-			}else{
-				t,_ := template.ParseFiles("delete.html")
-				t.Execute(w,p)
-				p.Ok = false
-			}
-		case "POST":
-			r.ParseForm()
-			id,_ := strconv.ParseInt(r.Form.Get("id")[0:], 10, 0)
-			ok := sqlite.Delete(int(id))
+		if ok := sqlite.Save(user, passw, category, id); ok {
 			p.Ok = ok
-			http.Redirect(w,r,"/delete/",http.StatusFound)
+			http.Redirect(w, r, "/add/", http.StatusFound)
+		}
 	}
+}
 
+func showhandle(w http.ResponseWriter, r *http.Request) {
+	fmt.Printf("[%s] %s\n", r.Method, r.URL.Path)
+
+	if r.URL.Path != "/show/" {
+		http.Error(w, "404 Page Not Found", http.StatusNotFound)
+		fmt.Printf("[%s] %s\n", r.Method, r.URL.Path)
+	}
+	cookie, _ := r.Cookie("session")
+	user := getUserName(r) // get username from session
+
+	switch req := r.Method; req {
+	case "GET":
+		if cookie == nil {
+			fmt.Fprintf(w, "login to show your stuff")
+		} else {
+			p.Username = user
+			t, _ := template.ParseFiles("show.html")
+			t.Execute(w, finallist)
+		}
+
+	case "POST":
+		r.ParseForm()
+		category := r.Form.Get("category")
+		id := sqlite.Getuid(user)
+		if category != "" {
+			i, u, P, c := sqlite.GetStuff(id, category)
+			finallist = finallist[:0]
+			for x := 0; x < len(i); x++ {
+				p.Id = i[x]
+				p.User = u[x]
+				p.Password = P[x]
+				p.Category = c[x]
+				finallist = append(finallist, p)
+			}
+
+			http.Redirect(w, r, "/show/", http.StatusFound)
+		} else {
+			i, u, P, c := sqlite.GetStuff(id, category)
+			finallist = finallist[:0]
+			for x := 0; x < len(i); x++ {
+				p.Id = i[x]
+				p.User = u[x]
+				p.Password = P[x]
+				p.Category = c[x]
+				finallist = append(finallist, p)
+			}
+
+			http.Redirect(w, r, "/show/", http.StatusFound)
+		}
+	}
 
 }
 
+func updatehandle(w http.ResponseWriter, r *http.Request) {
+	fmt.Printf("[%s] %s\n", r.Method, r.URL.Path)
+	if r.URL.Path != "/update/" {
+		http.Error(w, "404 Page Not Found", http.StatusNotFound)
+		fmt.Printf("[%s] %s\n", r.Method, r.URL.Path)
+	}
+	cookie, _ := r.Cookie("session")
+	user := getUserName(r)
+	switch req := r.Method; req {
+	case "GET":
+		if cookie == nil {
+			fmt.Fprintf(w, "login to update your stuff")
+		} else {
+			p.Username = user
+			t, _ := template.ParseFiles("update.html")
+			t.Execute(w, p)
+			p.Updated = false
+		}
+	case "POST":
+		r.ParseForm()
+		id, err := strconv.ParseInt(r.Form.Get("id")[0:], 10, 0)
+		if err != nil {
+			panic(err)
+		}
+		Nuser := r.Form.Get("user")
+		Npassw := r.Form.Get("passw")
+		Ncatg := r.Form.Get("catg")
 
+		var ok bool = false
+		if x := sqlite.Update(int(id), Nuser, Npassw, Ncatg); len(x) != 0 {
 
-func main(){
-	
-	http.HandleFunc("/",home) 
-	http.HandleFunc("/add/",addElement)
-	http.HandleFunc("/login/",loginhandle)
-	http.HandleFunc("/register/",registerhandle)
-	http.HandleFunc("/logout/",logouthandle)
-	http.HandleFunc("/show/",showhandle)
-	http.HandleFunc("/update/",updatehandle)
-	http.HandleFunc("/delete/",deletehandle)
+			for i := 0; i < len(x); i++ {
+				if x[i] != 0 && i == 0 {
+					ok = true
+					p.Updated = ok
+				} else if x[i] != 0 && i == 1 {
+					ok = true
+					p.Updated = ok
+				} else if x[i] != 0 && i == 2 {
+					ok = true
+					p.Updated = ok
+				}
+			}
+			http.Redirect(w, r, "/update/", http.StatusFound)
+		}
+	}
+}
 
+func deletehandle(w http.ResponseWriter, r *http.Request) {
+	fmt.Printf("[%s] %s\n", r.Method, r.URL.Path)
+	if r.URL.Path != "/delete/" {
+		http.Error(w, "404 Page Not Found", http.StatusNotFound)
+		fmt.Printf("[%s] %s\n", r.Method, r.URL.Path)
+	}
+
+	cookie, _ := r.Cookie("session")
+
+	switch req := r.Method; req {
+	case "GET":
+		if cookie == nil {
+			fmt.Fprintf(w, "Login to delete your stuff")
+		} else {
+			t, _ := template.ParseFiles("delete.html")
+			t.Execute(w, p)
+			p.Ok = false
+		}
+	case "POST":
+		r.ParseForm()
+		id, _ := strconv.ParseInt(r.Form.Get("id")[0:], 10, 0)
+		ok := sqlite.Delete(int(id))
+		p.Ok = ok
+		http.Redirect(w, r, "/delete/", http.StatusFound)
+	}
+
+}
+
+func main() {
+
+	http.HandleFunc("/", home)
+	http.HandleFunc("/add/", addElement)
+	http.HandleFunc("/login/", func(w http.ResponseWriter, r *http.Request) {
+		if err := loginhandle(w, r); err != nil {
+			// errors :
+			// - unable to encode cookie (see also gorilla/securecookie)
+			if err, ok := err.(securecookie.Error); ok {
+				http.Error(w, err.Cause().Error(), http.StatusInternalServerError)
+			}
+			panic(err)
+		}
+	})
+	http.HandleFunc("/register/", registerhandle)
+	http.HandleFunc("/logout/", logouthandle)
+	http.HandleFunc("/show/", showhandle)
+	http.HandleFunc("/update/", updatehandle)
+	http.HandleFunc("/delete/", deletehandle)
 
 	fmt.Println("Running http server on http://localhost:8080 ")
-	if err := http.ListenAndServe(":8080", nil) ; err != nil{
+	if err := http.ListenAndServe(":8080", nil); err != nil {
 		log.Fatal(err)
 	}
 }
-
